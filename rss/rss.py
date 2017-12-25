@@ -160,11 +160,9 @@ class RSS(object):
             tag's content.
         """
 
-        print(filtered)
-        print(keyword)
         if filtered is not None and keyword == "":
-            await send_cmd_help(ctx)
-            print('dun goofeed up')
+            await self.bot.say("If a tag to filter is provided, you must also"
+                               "provide a keyword to check for.")
             return
 
         channel = ctx.message.channel
@@ -225,8 +223,13 @@ class RSS(object):
 
         message = await self.get_current_feed(server.id, channel.id,
                                               feed_name, items)
-
-        await self.bot.say(message)
+        if message is not None:
+            await self.bot.say(message)
+        else:
+            await self.bot.say("Feed entry has been filtered."
+                               "Current filter: {} on {}"
+                               .format(items['keyword'], items['filtered_tag'])
+                               )
 
     @rss.command(pass_context=True, name="remove")
     async def _rss_remove(self, ctx, name: str):
@@ -268,7 +271,8 @@ class RSS(object):
             log.debug("New entry found for feed {} on sid {}".format(
                 name, server))
             latest = rss.entries[0]
-            if items['keyword'] not in getattr(latest, items['filtered_tag']):
+            if items['filtered_tag'] is not None and items['keyword'] not in\
+                    getattr(latest, items['filtered_tag']):
                 log.debug("Entry does not contain keyword {} in {}"
                           .format(items['keyword'], items['filtered_tag']))
                 return None
