@@ -64,7 +64,10 @@ class Feeds(object):
         self.save_feeds()
         return True
 
-    def add_feed(self, ctx, name, url):
+    def add_feed(self, ctx, name, url, filtered_tag, keyword):
+        if filtered_tag is None or keyword is None:
+            filtered_tag = None
+            keyword = ""
         server = ctx.message.server.id
         channel = ctx.message.channel.id
         if server not in self.feeds:
@@ -75,6 +78,9 @@ class Feeds(object):
         self.feeds[server][channel][name]['url'] = url
         self.feeds[server][channel][name]['last'] = ""
         self.feeds[server][channel][name]['template'] = "$name:\n$title"
+        self.feeds[server][channel][name]['filtered_tag'] = filtered_tag
+        self.feeds[server][channel][name]['keyword'] = keyword
+
         self.save_feeds()
 
     async def delete_feed(self, ctx, name):
@@ -147,12 +153,21 @@ class RSS(object):
             await send_cmd_help(ctx)
 
     @rss.command(pass_context=True, name="add")
-    async def _rss_add(self, ctx, name: str, url: str):
-        """Add an RSS feed to the current channel"""
+    async def _rss_add(self, ctx, name: str, url: str, filtered=None,
+                       keyword:str=""):
+        """ Add an RSS feed to the current channel.
+            You can provide a `keyword` to filter the feed by the `filtered`
+            tag's content.
+        """
+
+        if filtered is not None and keyword == "":
+            await send_cmd_help(ctx)
+            return
+
         channel = ctx.message.channel
         valid_url = await self.valid_url(url)
         if valid_url:
-            self.feeds.add_feed(ctx, name, url)
+            self.feeds.add_feed(ctx, name, url, filtered, keyword)
             await self.bot.send_message(
                 channel,
                 'Feed "{}" added. Modify the template using'
@@ -250,6 +265,11 @@ class RSS(object):
             log.debug("New entry found for feed {} on sid {}".format(
                 name, server))
             latest = rss.entries[0]
+            if items['keyword'] not in latest[items['filtered_tag']]:
+                log.debug("Entry does not contain keyword {} in {}"
+                          .format(items['keyword'], items['filtered_tag']))
+                return None
+
             to_fill = string.Template(template)
             message = to_fill.safe_substitute(
                 name=bold(name),
