@@ -154,14 +154,17 @@ class RSS(object):
 
     @rss.command(pass_context=True, name="add")
     async def _rss_add(self, ctx, name: str, url: str, filtered=None,
-                       keyword:str=""):
+                       keyword: str=""):
         """ Add an RSS feed to the current channel.
             You can provide a `keyword` to filter the feed by the `filtered`
             tag's content.
         """
 
+        print(filtered)
+        print(keyword)
         if filtered is not None and keyword == "":
             await send_cmd_help(ctx)
+            print('dun goofeed up')
             return
 
         channel = ctx.message.channel
@@ -265,7 +268,7 @@ class RSS(object):
             log.debug("New entry found for feed {} on sid {}".format(
                 name, server))
             latest = rss.entries[0]
-            if items['keyword'] not in latest[items['filtered_tag']]:
+            if items['keyword'] not in getattr(latest, items['filtered_tag']):
                 log.debug("Entry does not contain keyword {} in {}"
                           .format(items['keyword'], items['filtered_tag']))
                 return None
