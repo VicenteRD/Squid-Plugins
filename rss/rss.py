@@ -227,7 +227,7 @@ class RSS(object):
             await self.bot.say(message)
         else:
             await self.bot.say("Feed entry has been filtered."
-                               "Current filter: {} on {}"
+                               " Current filter: \"{}\" on `{}` tag"
                                .format(items['keyword'], items['filtered_tag'])
                                )
 
