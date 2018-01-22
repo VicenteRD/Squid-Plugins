@@ -168,7 +168,8 @@ class RSS(object):
         channel = ctx.message.channel
         valid_url = await self.valid_url(url)
         if valid_url:
-            self.feeds.add_feed(ctx, name, url, filtered, keyword)
+            self.feeds.add_feed(ctx, name, url, filtered,
+                                keyword.replace('_', ' '))
             await self.bot.send_message(
                 channel,
                 'Feed "{}" added. Modify the template using'
