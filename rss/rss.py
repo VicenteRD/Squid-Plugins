@@ -44,7 +44,7 @@ class Feeds(object):
             print("Creating empty feeds.json...")
             fileIO(f, "save", {})
 
-    def update_time(self, server, channel, name, time):
+    def update_feed(self, server, channel, name, time):
         if server in self.feeds:
             if channel in self.feeds[server]:
                 if name in self.feeds[server][channel]:
@@ -166,18 +166,24 @@ class RSS(object):
             return
 
         channel = ctx.message.channel
+        server_id = ctx.message.server.id
+
         valid_url = await self.valid_url(url)
-        if valid_url:
-            self.feeds.add_feed(ctx, name, url, filtered,
-                                keyword.replace('_', ' '))
-            await self.bot.send_message(
-                channel,
-                'Feed "{}" added. Modify the template using'
-                ' rss template'.format(name))
-        else:
+        if not valid_url:
             await self.bot.send_message(
                 channel,
                 'Invalid or unavailable URL.')
+
+        self.feeds.add_feed(ctx, name, url, filtered,
+                            keyword.replace('_', ' '))
+        await self.get_current_feed(server_id, channel, name,
+                                    self.feeds.get_copy()[server_id][channel.id][name]
+                                    )
+
+        await self.bot.send_message(
+            channel,
+            'Feed "{}" added. Modify the template using'
+            ' rss template'.format(name))
 
     @rss.command(pass_context=True, name="list")
     async def _rss_list(self, ctx):
@@ -241,69 +247,90 @@ class RSS(object):
         else:
             await self.bot.say('Feed not found!')
 
-    async def get_current_feed(self, server, chan_id, name, items):
-        log.debug("getting feed {} on sid {}".format(name, server))
+    async def get_current_feed(self, server_id, channel, name, items):
+        log.debug("Getting feed {} on server {}.".format(name, server_id))
         url = items['url']
-        last_title = items['last']
-        template = items['template']
-        message = None
 
         try:
             async with self.session.get(url) as resp:
                 html = await resp.read()
         except:
-            log.exception("failure accessing feed at url:\n\t{}".format(url))
-            return None
+            log.exception("Failure accessing feed at URL:\n\t{}".format(url))
+            return
 
         rss = feedparser.parse(html)
 
         if rss.bozo:
-            log.debug("Feed at url below is bad.\n\t".format(url))
-            return None
+            log.debug("Feed at url below is bad.\n\t{}".format(url))
+            return
 
         try:
-            curr_title = rss.entries[0].title
+            newest_title = rss.entries[0].title
         except IndexError:
-            log.debug("no entries found for feed {} on sid {}".format(
-                name, server))
-            return message
+            log.debug("No entries found for feed {} on server {}"
+                      .format(name, server_id)
+                      )
+            return
 
-        if curr_title != last_title:
-            log.debug("New entry found for feed {} on sid {}".format(
-                name, server))
-            latest = rss.entries[0]
+        if items['last'] == "":
+            self.feeds.update_feed(
+                server_id, channel.id, name, rss.entries[0].title
+            )
+            return
+
+        last_title = items['last']
+        template = items['template']
+
+        if newest_title == last_title:
+            return
+
+        log.debug("New entry or entries found for feed {} on sid {}"
+                  .format(name, server_id)
+                  )
+
+        for entry in rss.entries:
+            if entry.title == last_title:
+                break
+
             if items['filtered_tag'] is not None and items['keyword'] not in\
-                    getattr(latest, items['filtered_tag']):
+                    getattr(entry, items['filtered_tag']):
                 log.debug("Entry does not contain keyword {} in {}"
                           .format(items['keyword'], items['filtered_tag']))
-                return None
+                continue
 
             to_fill = string.Template(template)
             message = to_fill.safe_substitute(
                 name=bold(name),
-                **latest
+                **entry
             )
 
-            self.feeds.update_time(
-                server, chan_id, name, curr_title)
-        return message
+            if message is not None:
+                await self.bot.send_message(channel, message)
+
+        self.feeds.update_feed(
+            server_id, channel.id, name, newest_title
+        )
+
+        return
 
     async def read_feeds(self):
         await self.bot.wait_until_ready()
         while self == self.bot.get_cog('RSS'):
             feeds = self.feeds.get_copy()
-            for server in feeds:
-                for chan_id in feeds[server]:
-                    for name, items in feeds[server][chan_id].items():
-                        log.debug("checking {} on sid {}".format(name, server))
-                        channel = self.get_channel_object(chan_id)
+            for server_id in feeds:
+                for channel_id in feeds[server_id]:
+                    for name, items in feeds[server_id][channel_id].items():
+                        log.debug("Checking {} on server {}"
+                                  .format(name, server_id)
+                                  )
+                        channel = self.get_channel_object(channel_id)
                         if channel is None:
-                            log.debug("response channel not found, continuing")
+                            log.debug("Response channel not found, continuing.")
                             continue
-                        msg = await self.get_current_feed(server, chan_id,
-                                                          name, items)
-                        if msg is not None:
-                            await self.bot.send_message(channel, msg)
+                        await self.get_current_feed(
+                            server_id, channel, name, items
+                        )
+
             await asyncio.sleep(300)
 
 
