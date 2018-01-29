@@ -100,6 +100,8 @@ class Feeds(object):
         self.feeds[url][server_id][name] = new_feed
         self.save_feeds()
 
+        if server_id not in self._reverse_map:
+            self._reverse_map[server_id] = {}
         self._reverse_map[server_id][name] = url
 
     async def remove_feed(self, server_id, name):
