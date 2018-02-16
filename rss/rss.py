@@ -8,6 +8,7 @@ import logging
 import copy
 from datetime import datetime
 
+from cogs.utils import checks
 from cogs.utils.dataIO import fileIO
 from cogs.utils.chat_formatting import *
 from __main__ import send_cmd_help
@@ -242,6 +243,7 @@ class RSS(object):
         return None
 
     @commands.group(pass_context=True)
+    @checks.mod_or_permissions(administrator=True)
     async def rss(self, ctx):
         """ RSS feed stuff. """
         if ctx.invoked_subcommand is None:
