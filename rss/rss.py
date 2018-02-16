@@ -60,6 +60,8 @@ class Feeds(object):
     def get_url_for_name(self, server_id, name):
         if server_id not in self._reverse_map:
             return None
+        if name not in self._reverse_map[server_id]:
+            return None
         return self._reverse_map[server_id][name]
 
     def save_feeds(self):
@@ -90,6 +92,7 @@ class Feeds(object):
         new_feed = {
             'channel_id': channel_id,
             'template': "$name:\n$title",
+            'mention': "",
             'filtered_tag': filtered_tag,
             'keyword': keyword,
             'last_update': "",
@@ -149,7 +152,31 @@ class Feeds(object):
         if url is not None and url in self.feeds:
             if server_id in self.feeds[url]:
                 if name in self.feeds[url][server_id]:
-                    self.feeds[url][server_id][name]['template'] = template
+                    feed = self.feeds[url][server_id][name]
+
+                    if "<>" in template and feed['mention'] != "":
+                        template = template.replace("<>", feed['mention'])
+                    feed['template'] = template
+
+                    self.save_feeds()
+                    return True
+        return False
+
+    async def edit_mention(self, server_id, name, role):
+        url = self.get_url_for_name(server_id, name)
+
+        if url is not None and url in self.feeds:
+            if server_id in self.feeds[url]:
+                if name in self.feeds[url][server_id]:
+                    feed = self.feeds[url][server_id][name]
+
+                    feed['mention'] = role.mention
+
+                    template = feed['template']
+                    if "<>" in template:
+                        feed['template'] = template\
+                            .replace("<>", feed['mention'])
+
                     self.save_feeds()
                     return True
         return False
@@ -295,6 +322,28 @@ class RSS(object):
             "Available Feeds:\n\t" +
             "\n\t".join(feed_names)
         ))
+
+    @rss.command(pass_context=True, name="notify")
+    async def _rss_notify(self, ctx, feed_name: str, role: discord.Role):
+        """ Sets the role which the posts should tag. To specify where the
+            notification should go within the template, add `<>` to it.
+            E.g.: $name: <>, new update! $title.
+        """
+        server = ctx.message.server
+        if server is None:
+            await self.bot.say("Command cannot be executed "
+                               "through direct messages.")
+            return
+
+        success = await self.feeds.edit_mention(
+            server.id, feed_name, role
+        )
+        if success:
+            await self.bot.say("Role mention modified successfully.")
+        else:
+            await self.bot.say('Feed not found!')
+
+
 
     @rss.command(pass_context=True, name="template")
     async def _rss_template(self, ctx, feed_name: str, *, template: str):
