@@ -400,22 +400,29 @@ class RSS(object):
         items = copy.deepcopy(feeds[url][server.id][feed_name])
 
         result = await self.post_feed_updates(
-            server.id, channel, feed_name,
-            items, await self.get_feed_entries(url)
+            server.id, feed_name, items, await self.get_feed_entries(url)
         )
 
-        if not result:
+        if result is None:
+            message = "Error while trying to find the channel. " \
+                      "What have you done to it!?"
+        elif not result:
             message = "No new entries found."
             if items['filtered_tag'] != "":
                 message += (" Current filter: \"{}\" on `{}` tag"
                             .format(items['keyword'], items['filtered_tag']))
+        else:
+            return
+        await self.bot.say(message)
 
-            await self.bot.say(message)
-
-    async def post_feed_updates(self, server_id, channel, name, items, entries):
+    async def post_feed_updates(self, server_id, name, items, entries):
         log.debug("Posting updates for feed {}".format(name))
 
         template = items['template']
+
+        channel = self.get_channel_object(items['channel_id'])
+        if channel is None:
+            return None
 
         if items['update_time'] == "":
             last_time = Feeds.rss_time_from(entries[0].published)
@@ -473,15 +480,14 @@ class RSS(object):
                     for name, items in server_feeds.items():
                         log.debug("Checking {} with URL {}".format(name, url))
 
-                        channel = self.get_channel_object(items['channel_id'])
-
-                        if channel is None:
-                            log.debug("Response channel not found, continuing.")
-                            continue
-
-                        await self.post_feed_updates(
-                            server_id, channel, name, items, rss_entries
+                        result = await self.post_feed_updates(
+                            server_id, name, items, rss_entries
                         )
+
+                        if result is None:
+                            log.debug("Channel not found for feed " +
+                                      name + ".")
+                            continue
 
             await asyncio.sleep(300)
 
