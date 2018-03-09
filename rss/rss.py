@@ -474,6 +474,8 @@ class RSS(object):
 
             for url, feeds in all_feeds.items():
                 rss_entries = await self.get_feed_entries(url)
+                if rss_entries is None:
+                    continue
 
                 for server_id, server_feeds in feeds.items():
 
