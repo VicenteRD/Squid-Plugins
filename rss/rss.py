@@ -345,8 +345,6 @@ class RSS(object):
         else:
             await self.bot.say('Feed not found!')
 
-
-
     @rss.command(pass_context=True, name="template")
     async def _rss_template(self, ctx, feed_name: str, *, template: str):
         ("""Set a template for the feed alert
@@ -444,11 +442,20 @@ class RSS(object):
             if title == items['last_update'] or title in items['posted']:
                 continue
 
-            if items['filtered_tag'] != "" and items['keyword'] not in \
-                    getattr(entry, items['filtered_tag']):
-                log.debug("Entry does not contain keyword {} in {}"
-                          .format(items['keyword'], items['filtered_tag']))
-                continue
+            if items['filtered_tag'] != "":
+                filtered_tag = getattr(entry, items['filtered_tag'])
+
+                starting_filter = (
+                    items['keyword'].startswith('>')
+                    and not filtered_tag.startswith(
+                        items['keyword'].replace('>', '')
+                    )
+                )
+
+                if starting_filter and (items['keyword'] not in filtered_tag):
+                    log.debug("Entry does not contain keyword {} in {}"
+                              .format(items['keyword'], items['filtered_tag']))
+                    continue
 
             to_fill = string.Template(template)
             message = to_fill.safe_substitute(
