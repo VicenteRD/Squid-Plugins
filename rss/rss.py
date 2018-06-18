@@ -444,17 +444,17 @@ class RSS(object):
 
             if items['filtered_tag'] != "":
                 filtered_tag = getattr(entry, items['filtered_tag'])
+                kw = items['keyword']
 
-                starting_filter = (
-                    items['keyword'].startswith('>')
-                    and not filtered_tag.startswith(
-                        items['keyword'].replace('>', '')
-                    )
-                )
+                if kw.startswith('>'):
+                    if not filtered_tag.startswith(kw.replace('>', '')):
+                        log.debug("Entry does not start with keyword {} in {}"
+                                  .format(kw, items['filtered_tag']))
+                        continue
 
-                if starting_filter and (items['keyword'] not in filtered_tag):
+                elif kw not in filtered_tag:
                     log.debug("Entry does not contain keyword {} in {}"
-                              .format(items['keyword'], items['filtered_tag']))
+                              .format(kw, items['filtered_tag']))
                     continue
 
             to_fill = string.Template(template)
